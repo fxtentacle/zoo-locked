@@ -138,71 +138,21 @@ static char* lookupnode(struct String_vector *vector, char *prefix) {
 
 
 
-
-static const char* state2String(int state){
-    if (state == 0)
-        return "CLOSED_STATE";
-    if (state == ZOO_CONNECTING_STATE)
-        return "CONNECTING_STATE";
-    if (state == ZOO_ASSOCIATING_STATE)
-        return "ASSOCIATING_STATE";
-    if (state == ZOO_CONNECTED_STATE)
-        return "CONNECTED_STATE";
-    if (state == ZOO_EXPIRED_SESSION_STATE)
-        return "EXPIRED_SESSION_STATE";
-    if (state == ZOO_AUTH_FAILED_STATE)
-        return "AUTH_FAILED_STATE";
-    
-    return "INVALID_STATE";
-}
-
-static const char* type2String(int state){
-    if (state == ZOO_CREATED_EVENT)
-        return "CREATED_EVENT";
-    if (state == ZOO_DELETED_EVENT)
-        return "DELETED_EVENT";
-    if (state == ZOO_CHANGED_EVENT)
-        return "CHANGED_EVENT";
-    if (state == ZOO_CHILD_EVENT)
-        return "CHILD_EVENT";
-    if (state == ZOO_SESSION_EVENT)
-        return "SESSION_EVENT";
-    if (state == ZOO_NOTWATCHING_EVENT)
-        return "NOTWATCHING_EVENT";
-    
-    return "UNKNOWN_EVENT_TYPE";
-}
-
 void watcher(zhandle_t *zzh, int type, int state, const char *path, void* context)
 {
-    fprintf(stderr, "Watcher %s state = %s", type2String(type), state2String(state));
-    if (path && strlen(path) > 0) {
-      fprintf(stderr, " for path %s", path);
-    }
-    fprintf(stderr, "\n");
-
-    if (type == ZOO_SESSION_EVENT) {
-        if (state == ZOO_CONNECTED_STATE) {
-            const clientid_t *id = zoo_client_id(zzh);
-           	fprintf(stderr, "Got a new session id: 0x%llx\n", _LL_CAST_ id->client_id);
-        } else if (state == ZOO_AUTH_FAILED_STATE) {
-            fprintf(stderr, "Authentication failure. Shutting down...\n");
-        } else if (state == ZOO_EXPIRED_SESSION_STATE) {
-            fprintf(stderr, "Session expired. Shutting down...\n");
-        }
-    }
 }
 
 
 
 int main( int argc, const char* argv[] )
 {
+    int exitcode = 0;
+    
 	zhandle_t *zh;
 	const char* hosts = argv[1];
 	char *path = argv[2];
 	struct ACL_vector *acl = &ZOO_OPEN_ACL_UNSAFE;;
 	char *id = NULL;
-	int isOwner = 0
 	char* ownerid = NULL;
 	
 	// connect
@@ -290,7 +240,7 @@ int main( int argc, const char* argv[] )
                 int flen = strlen(path) + strlen(lessthanme) + 2;
                 char last_child[flen];
                 sprintf(last_child, "%s/%s",path, lessthanme);
-                printf("LOCKED: %s\n", last_child);
+                printf("LOCKED by %s\n", last_child);
                 goto exitnow;
             } else {
                 // i got the lock
@@ -310,11 +260,18 @@ int main( int argc, const char* argv[] )
         goto exitnow;
     }
     
-    sleep(10);
+    FILE *f = popen(argv[3], "r");
+    char tmp[512];
     
+    if(f){
+        while(fgets(tmp, sizeof(tmp), f)) printf("%s", tmp);
+    }
+    
+    exitcode = pclose(f) >> 8;
+
 exitnow:
     zookeeper_close(zh);
-    return 0;
+    return exitcode;
 }
 
 
